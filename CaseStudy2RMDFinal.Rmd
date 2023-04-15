@@ -1,0 +1,467 @@
+---
+title: "Unit 14/15 Case Study 2"
+author: "Kyle Kuberski"
+date: "2023-04-11"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+#Load in AWS Info and Grab Case Study Data from ddsproject1 Bucket
+
+library(tidyverse)
+library(aws.s3)
+
+
+Sys.setenv("AWS_ACCESS_KEY_ID" = "AKIAWP3HYDAZDXMYU6EQ",
+           "AWS_SECRET_ACCESS_KEY" = "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",
+           "AWS_DEFAULT_REGION" = "us-east-2")
+
+
+aws.s3::get_bucket("ddsproject1")
+
+#Read in the case study.csv
+casestudy2 = s3read_using(FUN = read.csv,
+                    bucket = "ddsproject1",
+                    object = "CaseStudy2-data.csv")
+head(casestudy2)
+
+
+```
+
+```{r}
+#Explore Dataset, find what may cause increased attrition
+library(ggplot2)
+head(casestudy2)
+print(casestudy2)
+
+# Subset the data to only include rows where Attrition is "Yes"
+data_yes <- subset(casestudy2, Attrition == "Yes")
+
+# Use table() to count the number of occurrences of each JobSatisfaction level for both Attrition "Yes" and "No"
+table(casestudy2$JobSatisfaction, casestudy2$Attrition)
+
+table(casestudy2$JobLevel, casestudy2$Attrition)
+
+###Apply linear regression to find which variables correlate with attrition the most
+data_subset <- casestudy2[, c("Attrition", "Age", "JobSatisfaction", "MonthlyIncome", "YearsAtCompany", "YearsSinceLastPromotion", "YearsWithCurrManager", "BusinessTravel", "DailyRate", "DistanceFromHome", "Education", "EnvironmentSatisfaction", "HourlyRate",
+                              "JobInvolvement","JobLevel", "MaritalStatus", "MonthlyRate", "PercentSalaryHike", "PerformanceRating",
+                              "RelationshipSatisfaction", "StandardHours", "StockOptionLevel", "TotalWorkingYears", "TrainingTimesLastYear",
+                              "WorkLifeBalance", "YearsInCurrentRole")]
+
+data_subset$Attrition_bin <- ifelse(data_subset$Attrition == "Yes", 1, 0)
+
+#fit to model
+model <- lm(Attrition_bin ~ Age + JobSatisfaction + MonthlyIncome + YearsAtCompany + YearsSinceLastPromotion + YearsWithCurrManager +BusinessTravel +DailyRate +DistanceFromHome +Education +EnvironmentSatisfaction +HourlyRate +JobInvolvement +JobLevel +MaritalStatus +MonthlyRate +PercentSalaryHike +PerformanceRating +RelationshipSatisfaction +StandardHours +StockOptionLevel + TotalWorkingYears + TrainingTimesLastYear +WorkLifeBalance +YearsInCurrentRole, data = data_subset)
+summary(model)
+
+#identify top 3 variables
+top_three_vars <- names(sort(abs(model$coefficients), decreasing = TRUE)[2:4])
+top_three_vars
+
+```
+
+```{r}
+
+###Job Satisfaction, Years since last promo, Years with Current Manager
+plot_wlb <- ggplot(casestudy2, aes(x=JobSatisfaction, fill = Attrition)) +
+  geom_bar(position = "dodge")+
+  xlab("Job Satisfaction")+
+  ylab("Count")+
+  ggtitle("Attrition by JobSatisfaction")
+plot_wlb
+
+# create a box plot
+ggplot(casestudy2, aes(x = Attrition, y = YearsSinceLastPromotion)) +
+  geom_boxplot(fill = "cyan", color = "grey", alpha = 0.8) +
+  theme_classic() +
+  labs(x = "Attrition", y = "Years Since Last Promotion")
+
+
+#OverTime, MonthlyIncome, and StockOption Level v Attriton
+plot_wlb <- ggplot(casestudy2, aes(x=OverTime, fill = Attrition)) +
+  geom_bar(position = "dodge")+
+  xlab("Overtime")+
+  ylab("Count")+
+  ggtitle("Attrition by Overtime")
+plot_wlb
+
+plot_wlb <- ggplot(casestudy2, aes(x=StockOptionLevel, fill = Attrition)) +
+  geom_bar(position = "dodge")+
+  xlab("StockOptionLevel")+
+  ylab("Count")+
+  ggtitle("Attrition by StockOptionLevel")
+plot_wlb
+
+```
+
+
+```{r}
+library(dplyr)
+# Group by MaritalStatus and Attrition, count the number of observations
+maritalcount <- casestudy2 %>% 
+  group_by(MaritalStatus, Attrition) %>% 
+  summarise(count = n())
+
+# Pivot table to make counts table wide
+maritalc_wide <- maritalcount %>% 
+  pivot_wider(names_from = Attrition, values_from = count)
+
+# Add column for total count
+maritalc_wide$total_count <- rowSums(maritalc_wide[2:3])
+
+# Add column for percent of total count
+maritalc_wide$percent_of_total <- round(maritalc_wide$total_count / sum(maritalc_wide$total_count) * 100, 2)
+maritalc_wide
+
+#Repeat for Business Travel
+# Group by MaritalStatus and Attrition, count the number of observations
+btravel <- casestudy2 %>% 
+  group_by(BusinessTravel, Attrition) %>% 
+  summarise(count = n()) %>% 
+  pivot_wider(names_from = Attrition, values_from = count) %>% 
+  mutate(Total = `Yes` + `No`, `Yes` = `Yes`/Total*100) %>% 
+  arrange(BusinessTravel)
+btravel
+
+#Last one for Job Involvement
+jobinvol <- casestudy2 %>% 
+  group_by(JobInvolvement, Attrition) %>% 
+  summarise(count = n()) %>% 
+  pivot_wider(names_from = Attrition, values_from = count) 
+jobinvol
+
+
+```
+
+```{r}
+#Visually Investigate Our Top Three
+#Marital Status (Single)
+# Create a new data frame with the count of attrition by marital status
+attrition_count <- casestudy2 %>%
+  group_by(MaritalStatus, Attrition) %>%
+  summarise(count = n()) %>%
+  mutate(prop = count / sum(count))
+
+# Stacked bar chart
+ggplot(attrition_count, aes(x = MaritalStatus, y = prop, fill = Attrition)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Marital Status", y = "Proportion", fill = "Attrition") +
+  ggtitle("Attrition by Marital Status") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+#Business Travel Frequency
+ggplot(casestudy2, aes(x = BusinessTravel, fill = Attrition)) + 
+  geom_bar(position = "dodge") +
+  labs(x = "Business Travel Frequency", y = "Count", fill = "Attrition") +
+  ggtitle("Attrition by Business Travel Frequency") +
+  theme_minimal()
+
+#Job Involvement
+ggplot(casestudy2, aes(x = JobInvolvement, fill = Attrition)) + 
+  geom_bar(position = "dodge") +
+  labs(x = "Job Involvement", y = "Count", fill = "Attrition") +
+  ggtitle("Attrition by Job Involvement") +
+  theme_minimal()
+```
+
+```{r}
+#Visual Investigation of Other Factors
+#Plot of Attrition vs Job Satisfaction
+ggplot(casestudy2, aes(x = Attrition, y = JobSatisfaction)) + 
+  # Add a boxplot with points
+  geom_boxplot(outlier.shape = NA, fill = "lightblue") + 
+  geom_jitter(color = "black", size = .5) +
+  # Add a y-axis label
+  ylab("Job Satisfaction") +
+  # Add a title
+  ggtitle("Attrition vs. Job Satisfaction")
+
+#There does appear to be some graphical evidence that may support a theory of lower job satisfaction leading to higher attrition.
+
+#Lets compare Attrition roughly against Age, Hourly Rate, and Years since last promotion.
+# Create a plot of "Attrition" versus "Age"
+plot_age <- ggplot(casestudy2, aes(x = Attrition, y = Age)) +
+  geom_boxplot(outlier.shape = NA, fill = "lightblue") + 
+  geom_jitter(color = "darkblue", size = 1) +
+  ylab("Age") +
+  ggtitle("Attrition vs. Age")
+
+# Create a plot of "Attrition" versus "HourlyRate"
+plot_hourlyrate <- ggplot(casestudy2, aes(x = Attrition, y = HourlyRate)) +
+  geom_boxplot(outlier.shape = NA, fill = "lightblue") + 
+  geom_jitter(color = "darkblue", size = 1) +
+  ylab("Hourly Rate") +
+  ggtitle("Attrition vs. Hourly Rate")
+
+# Create a plot of "Attrition" versus "YearsSinceLastPromotion"
+plot_promotion <- ggplot(casestudy2, aes(x = Attrition, y = YearsSinceLastPromotion)) +
+  geom_boxplot(outlier.shape = NA, fill = "lightblue") + 
+  geom_jitter(color = "darkblue", size = 1) +
+  ylab("Years Since Last Promotion") +
+  ggtitle("Attrition vs. Years Since Last Promotion")
+
+#All three have low evidence of a strong correlation to Attrition
+plot_age
+plot_hourlyrate
+plot_promotion
+
+plot_income_age <- ggplot(casestudy2, aes(x = Age, y = MonthlyIncome, color = Attrition)) +
+  geom_point() +
+  xlab("Age") +
+  ylab("Monthly Income") +
+  ggtitle("Age vs. Monthly Income by Attrition")
+
+# Show the plot
+plot_income_age
+#Add Regression Line to Positives
+plot_income_age +
+  geom_smooth(data = subset(casestudy2, Attrition == "Yes"), method = "lm", se = FALSE)
+
+
+# Create a bar graph of "JobRole" by "Attrition"
+plot_jobrole_attrition <- ggplot(casestudy2, aes(x = JobRole, fill = Attrition)) +
+  geom_bar(position = "dodge") +
+  xlab("Job Role") +
+  ylab("Count") +
+  ggtitle("Attrition by Job Role")
+
+# Rotate the x-axis labels for readability
+plot_jobrole_attrition + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#Sales Representatives show evidence of an abnormally high amount of attrition
+
+##Lets Check on Job Level
+plot_job_level <- ggplot(casestudy2, aes(x=JobLevel, fill = Attrition)) +
+  geom_bar(position = "dodge")+
+  xlab("Job Level")+
+  ylab("Count")+
+  ggtitle("Attrition by Job Level")
+plot_job_level
+
+#there is some evidence that lower job levels may have higher amounts of attrition.
+
+##Lets look at Age
+plot_age <- ggplot(casestudy2, aes(x=Age, fill = Attrition)) +
+  geom_bar(position = "dodge")+
+  xlab("Age")+
+  ylab("Count")+
+  ggtitle("Attrition by Age")
+plot_age
+
+##Lets look at Marital Status
+plot_marital <- ggplot(casestudy2, aes(x=MaritalStatus, fill = Attrition)) +
+  geom_bar(position = "dodge")+
+  xlab("MaritalStatus")+
+  ylab("Count")+
+  ggtitle("Attrition by MaritalStatus")
+plot_marital 
+
+
+##Lets look at Worklife Balance
+plot_wlb <- ggplot(casestudy2, aes(x=WorkLifeBalance, fill = Attrition)) +
+  geom_bar(position = "dodge")+
+  xlab("Worklife Balance Rating")+
+  ylab("Count")+
+  ggtitle("Attrition by Worklife Balance")
+plot_wlb
+
+##Lets look at Job Satisfaction
+plot_wlb <- ggplot(casestudy2, aes(x=JobSatisfaction, fill = Attrition)) +
+  geom_bar(position = "dodge")+
+  xlab("Job Satisfaction")+
+  ylab("Count")+
+  ggtitle("Attrition by Job Satisfaction")
+plot_wlb
+
+
+```
+
+
+```{r}
+library(caret)
+set.seed(123)
+
+casestudy2 <- read.csv("https://raw.githubusercontent.com/BivinSadler/MSDS_6306_Doing-Data-Science/Master/Unit%2014%20and%2015%20Case%20Study%202/CaseStudy2-data.csv")
+# Convert necessary columns to factor variables
+casestudy2$Attrition <- factor(casestudy2$Attrition)
+casestudy2$MaritalStatus <- factor(casestudy2$MaritalStatus)
+casestudy2$BusinessTravel <- factor(casestudy2$BusinessTravel)
+casestudy2$JobInvolvement <- factor(casestudy2$JobInvolvement)
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Split data into training and testing sets
+train_index <- createDataPartition(casestudy2$Attrition, p = 0.8, list = FALSE)
+train_data <- casestudy2[train_index, ]
+test_data <- casestudy2[-train_index, ]
+
+# Build linear regression model
+model <- glm(Attrition ~ MaritalStatus + BusinessTravel + JobInvolvement, data = train_data, family = "binomial")
+
+# Make predictions on test data
+pred <- predict(model, newdata = test_data, type = "response")
+
+# Create confusion matrix
+conf_matrix <- table(test_data$Attrition, ifelse(pred > 0.5, "Yes", "No"))
+
+# Calculate spec and sense
+TN <- conf_matrix[1,1]
+FP <- conf_matrix[1,2]
+FN <- conf_matrix[2,1]
+TP <- conf_matrix[2,2]
+
+specificity <- TN / (TN + FP)
+sensitivity <- TP / (TP + FN)
+
+# Display confusion matrix
+conf_matrix
+
+
+# Display accuracy, specificity, and sensitivity
+accuracy <- sum(diag(conf_matrix))/sum(conf_matrix)
+accuracy
+specificity
+sensitivity
+
+# Calculate the predicted residuals
+actuals <- ifelse(test_data$Attrition == "Yes", 1, 0)
+residuals <- pred - actuals
+
+# Plot the residuals over time
+ggplot(data.frame(residuals, test_data$YearsAtCompany), aes(x = test_data$YearsAtCompany, y = residuals)) +
+  geom_jitter() +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  ggtitle("Predicted Residuals vs Time") +
+  xlab("Years at Company") +
+  ylab("Predicted Residuals")
+
+
+
+
+```
+
+```{r}
+# load the data
+
+# Split data into training and test sets
+library(tidyverse)
+library(caret)
+library(e1071)
+
+#Lets try Linear Regression
+# create training and test sets
+set.seed(321)
+train_index <- createDataPartition(casestudy2$MonthlyIncome, p = 0.95, list = FALSE)
+train_data <- casestudy2[train_index, ]
+test_data <- casestudy2[-train_index, ]
+
+
+# fit the model and make predictions on the test set
+model <- lm(MonthlyIncome ~ JobLevel + TotalWorkingYears + YearsAtCompany + Age +YearsInCurrentRole+YearsWithCurrManager+
+              YearsSinceLastPromotion, data = train_data)
+pred <- predict(model, newdata = test_data)
+
+# calculate RMSEs for each MonthlyIncome
+results <- test_data %>%
+  group_by(MonthlyIncome) %>%
+  summarize(RMSE = sqrt(mean((MonthlyIncome - pred)^2)))
+results
+
+#RMSE's return some values over 3k for all predictor values... Lets try Naive-Bayes
+set.seed(131)
+train_index <- createDataPartition(casestudy2$MonthlyIncome, p = 0.8, list = FALSE)
+train_data <- casestudy2[train_index, ]
+test_data <- casestudy2[-train_index, ]
+
+# fit the model and make predictions on the test set
+model <- lm(MonthlyIncome ~ JobLevel + TotalWorkingYears + YearsAtCompany + Age +YearsInCurrentRole+YearsWithCurrManager+
+              YearsSinceLastPromotion, data = train_data)
+pred <- predict(model, newdata = test_data)
+
+# calculate RMSEs for each MonthlyIncome
+results <- test_data %>%
+  group_by(MonthlyIncome) %>%
+  summarize(RMSE = sqrt(mean((MonthlyIncome - pred)^2)))
+
+results
+#Naive-bayes resulted in higher RMSE's as well... 
+
+###CHATGPT find the most correlated variables for linear regression RMSE
+
+# Select only numerical variables
+num_vars <- casestudy2 %>% select_if(is.numeric)
+
+# Calculate correlation matrix
+cor_matrix <- cor(num_vars)
+
+# Sort correlation coefficients for MonthlyIncome in descending order
+correlations <- sort(cor_matrix[,"MonthlyIncome"], decreasing = TRUE)
+
+# Identify top correlated variables
+top_vars <- names(correlations[abs(correlations) > 0.2])
+
+
+##KNN Classifier (BEST MODEL)
+library(class)
+library(caret)
+
+set.seed(123)
+# select variables
+cols <- c("MonthlyIncome", "JobLevel", "TotalWorkingYears", "YearsAtCompany",
+          "Age", "YearsInCurrentRole", "YearsWithCurrManager", "YearsSinceLastPromotion")
+
+# create training and testing data sets
+train_index <- createDataPartition(casestudy2$MonthlyIncome, p = 0.8, list = FALSE)
+train_data <- casestudy2[train_index, cols]
+test_data <- casestudy2[-train_index, cols]
+
+# convert factor variables to numeric
+train_data$JobLevel <- as.numeric(train_data$JobLevel)
+test_data$JobLevel <- as.numeric(test_data$JobLevel)
+
+# fit kNN model
+knn_model <- train(MonthlyIncome ~ ., data = train_data, method = "knn",
+                   trControl = trainControl(method = "cv", number = 25),
+                   preProcess = c("center", "scale"),
+                   tuneLength = 25)
+
+# make predictions on the test set
+pred <- predict(knn_model, newdata = test_data)
+
+# calculate RMSEs for each MonthlyIncome
+results <- test_data %>%
+  mutate(pred = pred) %>%
+  group_by(MonthlyIncome) %>%
+  summarize(RMSE = sqrt(mean((MonthlyIncome - pred)^2)))
+results
+
+```
+
+```{r}
+#Diving into Job Satisfaction, Job Roles, and how they interact
+ggplot(casestudy2, aes(x = JobSatisfaction, y = JobRole, fill = JobRole)) +
+  geom_boxplot(position = "dodge") +
+  labs(x = "Job Satisfaction", y = "Job Role", fill = "Job Role") +
+  ggtitle("Job Satisfaction by Job Role") +
+  theme_minimal()
+
+library(dplyr)
+
+casestudy2 %>%
+  group_by(JobRole) %>%
+  summarize(mean_satisfaction = mean(JobSatisfaction)) %>%
+  arrange(desc(mean_satisfaction))
+
+```
+
+
+
