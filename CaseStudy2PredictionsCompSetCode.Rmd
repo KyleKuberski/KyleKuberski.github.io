@@ -1,0 +1,102 @@
+---
+title: "compset"
+author: "Kyle Kuberski"
+date: "2023-04-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+###DATA
+noattri <- read.csv(file.choose())
+casestudy2 <- noattri
+noincome<-read.csv(file.choose())
+
+```
+
+```{r}
+library(caret)
+
+# Split data into training and testing sets
+set.seed(123)
+noattri$Attrition <- sample(c("No", "Yes"), size = nrow(noattri), replace = TRUE)
+noattri$Attrition <- as.factor(noattri$Attrition)
+
+train_index <- createDataPartition(noattri$Attrition, p = 0.8, list = FALSE)
+train_data <- noattri[train_index, ]
+test_data <- noattri[-train_index, ]
+# Build linear regression model
+model <- glm(Attrition ~ MaritalStatus + BusinessTravel + JobInvolvement, data = train_data, family = "binomial")
+# Make predictions on test data
+test_data$predicted_Attrition <- predict(model, newdata = test_data, type = "response")
+test_data$predicted_Attrition <- ifelse(test_data$predicted_Attrition > 0.5, "Yes", "No")
+# Create confusion matrix
+conf_matrix <- table(test_data$Attrition, test_data$predicted_Attrition)
+# Calculate spec and sense
+TN <- conf_matrix[1,1]
+FP <- conf_matrix[1,2]
+FN <- conf_matrix[2,1]
+TP <- conf_matrix[2,2]
+specificity <- TN / (TN + FP)
+sensitivity <- TP / (TP + FN)
+# Display confusion matrix
+conf_matrix
+# Display accuracy, specificity, and sensitivity
+accuracy <- sum(diag(conf_matrix))/sum(conf_matrix)
+accuracy
+specificity
+sensitivity
+
+# Output predictions for each ID
+output <- data.frame(ID = test_data$ID, Attrition = test_data$predicted_Attrition)
+output
+write.csv(output, file = "predicted_attrition.csv", row.names = FALSE)
+
+```
+
+```{r}
+library(tidyverse)
+library(caret)
+library(broom)
+
+# create sample data
+set.seed(123)
+n <- 100
+noincome <- data.frame(
+  ID = rep(1:n, each = 2),
+  MonthlyIncome = sample(100:6000, n * 2, replace = TRUE),
+  JobLevel = sample(1:5, n * 2, replace = TRUE),
+  TotalWorkingYears = sample(1:30, n * 2, replace = TRUE),
+  YearsAtCompany = sample(1:30, n * 2, replace = TRUE),
+  Age = sample(20:60, n * 2, replace = TRUE),
+  YearsInCurrentRole = sample(1:10, n * 2, replace = TRUE),
+  YearsWithCurrManager = sample(1:10, n * 2, replace = TRUE),
+  YearsSinceLastPromotion = sample(1:10, n * 2, replace = TRUE)
+)
+
+# subset data to only include income-related variables
+income_vars <- c("ID", "MonthlyIncome")
+income_data <- noincome[income_vars]
+
+# split data into train and test sets
+train_index <- createDataPartition(income_data$MonthlyIncome, p = 0.7, list = FALSE)
+train_data <- income_data[train_index, ]
+test_data <- income_data[-train_index, ]
+
+# function to calculate RMSE by ID
+calc_RMSE_by_ID <- function(data) {
+  data %>%
+    group_by(ID) %>%
+    do(augment(lm(MonthlyIncome ~ ., data = .))) %>%
+    summarize(RMSE = sqrt(mean((.fitted - MonthlyIncome)^2)))
+}
+
+train_RMSE <- calc_RMSE_by_ID(train_data)
+test_RMSE <- calc_RMSE_by_ID(test_data)
+train_RMSE
+write.csv(train_RMSE, file = "predicted_income.csv", row.names = FALSE)
+
+
+```
