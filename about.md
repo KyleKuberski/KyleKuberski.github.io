@@ -4,27 +4,19 @@ title: About
 ---
 
 <p class="message">
-  Hey there! This page is included as an example. Feel free to customize it for your own use upon downloading. Carry on!
+  Hey there! This page is for a bit of personal information about myself!
 </p>
 
-In the novel, *The Strange Case of Dr. Jeykll and Mr. Hyde*, Mr. Poole is Dr. Jekyll's virtuous and loyal butler. Similarly, Poole is an upstanding and effective butler that helps you build Jekyll themes. It's made by [@mdo](https://twitter.com/mdo).
+I am a Business/Tech Professional aiming for higher education at Southern Methodist University. I am currently in the Data Analytics Program for a Master's degree in Business Analytics.
 
-There are currently two themes built on Poole:
+Feel free to check out my socials below!
 
-* [Hyde](http://hyde.getpoole.com)
-* [Lanyon](http://lanyon.getpoole.com)
+* https://www.instagram.com/kylekuberski/
+* https://twitter.com/kylekuberski
 
-Learn more and contribute on [GitHub](https://github.com/poole).
 
-## Setup
+## Other Info
 
-Some fun facts about the setup of this project include:
-
-* Built for [Jekyll](http://jekyllrb.com)
-* Developed on GitHub and hosted for free on [GitHub Pages](https://pages.github.com)
-* Coded with [Sublime Text 2](http://sublimetext.com), an amazing code editor
-* Designed and developed while listening to music like [Blood Bros Trilogy](https://soundcloud.com/maddecent/sets/blood-bros-series)
-
-Have questions or suggestions? Feel free to [open an issue on GitHub](https://github.com/poole/issues/new) or [ask me on Twitter](https://twitter.com/mdo).
+I am a prior athlete at Southwestern University where I played 4 years of NCAA Lacrosse. I was in the Texas Gamma Chapter of Phi Delta Theta as well!
 
 Thanks for reading!
